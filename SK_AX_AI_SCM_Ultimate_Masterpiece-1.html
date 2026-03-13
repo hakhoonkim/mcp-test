@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SK AX | AI SCM (최종 마스터피스)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Pretendard', 'sans-serif'],
+        }
+      }
+    }
+  }
+</script>
+<script>
+  // Toast notification
+  function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    const isDark = document.body.classList.contains('dark-theme');
+    const colors = type === 'success' ? 'border-green-500 bg-green-500/10 text-green-600' : type === 'warning' ? 'border-[#F5280B] bg-[#F5280B]/10 text-[#F5280B]' : 'border-[#DDDDDD] bg-white text-[#555]';
+    toast.className = `flex items-center gap-2 px-4 py-3 rounded-lg border text-sm font-bold shadow-2xl animate-toast ${colors}`;
+    const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : 'ℹ';
+    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.classList.add('animate-toast-out'); setTimeout(() => toast.remove(), 300); }, 3000);
+  }
+
+  // AI Copilot chat
+  function addCondition() {
+    const input = document.getElementById('chatInput');
+    const conditionList = document.getElementById('conditionList');
+    const chatMessages = document.getElementById('chatMessages');
+    if (input.value.trim() !== '') {
+      const userMsg = input.value.trim();
+
+      // Add condition pill
+      const condition = document.createElement('div');
+      condition.className = "text-xs bg-[#F5280B]/20 text-[#F5280B] px-3 py-1.5 rounded-full inline-flex items-center gap-2 border border-[#F5280B]/50 mb-2 mr-2 font-bold animate-fade-in";
+      condition.innerHTML = `<span>${userMsg}</span> <button class="hover:text-white" onclick="this.parentElement.remove(); updateKPI();">×</button>`;
+      conditionList.appendChild(condition);
+
+      // Add user message to chat
+      const userBubble = document.createElement('div');
+      userBubble.className = "flex justify-end animate-fade-in";
+      userBubble.innerHTML = `<div class="chat-user-bubble chat-user-inner text-sm px-3 py-2 rounded-xl rounded-tr-sm max-w-[80%]">${userMsg}</div>`;
+      chatMessages.appendChild(userBubble);
+
+      // AI status
+      const aiStatus = document.getElementById('aiStatusText');
+      const aiStatusIcon = document.getElementById('aiStatusIcon');
+      const details = document.getElementById('aiLogDetails');
+      if (details.style.maxHeight === '0px' || !details.style.maxHeight) toggleAiLog();
+
+      aiStatus.innerText = "조건부 시뮬레이션 재계산 중...";
+      aiStatusIcon.className = "animate-spin h-3 w-3 border-2 border-t-[#F5280B] border-r-[#F5280B] border-b-transparent border-l-transparent rounded-full shrink-0";
+
+      input.value = '';
+
+      // AI typing indicator
+      const typing = document.createElement('div');
+      typing.className = "flex justify-start animate-fade-in";
+      typing.id = "typingIndicator";
+      typing.innerHTML = `<div class="chat-typing-bubble bg-[#F4F4F4] border border-[#E6E6E6] text-[#555] text-sm px-3 py-2 rounded-xl rounded-tl-sm"><span class="animate-pulse">AI 분석 중...</span></div>`;
+      chatMessages.appendChild(typing);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      setTimeout(() => {
+        aiStatus.innerText = "S&OP 리소스 최적화 대기 중";
+        aiStatusIcon.className = "animate-pulse h-3 w-3 bg-[#F5280B] rounded-full shrink-0";
+        updateKPI();
+
+        // Remove typing, add AI response
+        const typingEl = document.getElementById('typingIndicator');
+        if (typingEl) typingEl.remove();
+
+        const aiResponse = generateAIResponse(userMsg);
+        const aiBubble = document.createElement('div');
+        aiBubble.className = "flex justify-start animate-fade-in";
+        aiBubble.innerHTML = `<div class="bg-[#F5280B]/10 border border-[#F5280B]/30 text-[#555] text-sm px-4 py-3 rounded-xl rounded-tl-sm max-w-[95%] chat-ai-bubble"><span class="text-[#F5280B] font-bold">AI</span> ${aiResponse}</div>`;
+        chatMessages.appendChild(aiBubble);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        addTimelineEntry('조건 추가: "' + userMsg.substring(0, 15) + (userMsg.length > 15 ? '...' : '') + '"');
+
+        setTimeout(() => { if(details.style.maxHeight !== '0px') toggleAiLog(); }, 2000);
+      }, 1500);
+    }
+  }
+
+  function generateAIResponse(input) {
+    const lower = input.toLowerCase();
+    if (lower.includes('예산') || lower.includes('비용') || lower.includes('원가')) {
+      return ' 예산 조건을 반영하여 시뮬레이션을 재계산했습니다. 외주 비중 조정 시 원가 구조 변동이 예상됩니다. 우측 슬라이더로 세부 조건을 조정해 보세요.';
+    } else if (lower.includes('인력') || lower.includes('인원') || lower.includes('리소스')) {
+      return ' 인력 관련 조건을 적용했습니다. 현재 전사 가동률 98% 기준으로, 추가 인력 확보 시 이익률 개선이 가능합니다.';
+    } else if (lower.includes('일정') || lower.includes('기간') || lower.includes('연기')) {
+      return ' 일정 변경 조건을 반영했습니다. 프로젝트 시작 일정 슬라이더를 조정하여 최적 시점을 확인해 보세요.';
+    }
+    return ' 조건을 적용하여 KPI를 재계산했습니다. 현재 시뮬레이션 결과를 우측 패널에서 확인하세요.';
+  }
+
+  // Dynamic timeline
+  function addTimelineEntry(text) {
+    const timeline = document.getElementById('timelineList');
+    const now = new Date();
+    const timeStr = String(now.getMonth() + 1).padStart(2, '0') + '.' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+    // Demote previous active entry
+    const prevActive = timeline.querySelector('.timeline-active');
+    if (prevActive) {
+      prevActive.classList.remove('timeline-active', 'text-[#111]', 'font-bold');
+      prevActive.classList.add('text-[#555]');
+      const prevTime = prevActive.querySelector('.timeline-time');
+      if (prevTime) { prevTime.classList.remove('text-[#F5280B]'); prevTime.classList.add('text-gray-400'); }
+    }
+
+    const entry = document.createElement('div');
+    entry.className = "flex gap-3 text-[#111] font-bold relative z-10 timeline-active animate-fade-in timeline-entry";
+    entry.innerHTML = `<span class="timeline-time text-[#F5280B] timeline-time-bg px-1 text-xs mt-0.5 shrink-0">${timeStr}</span><span class="text-sm">${text}</span>`;
+    timeline.appendChild(entry);
+  }
+
+  // Simulation KPI calculation (improved non-linear logic)
+  function updateKPI() {
+    // 4안: KPI activation animation
+    const kpiWrapper = document.getElementById("kpiResultWrapper");
+    if (kpiWrapper) {
+      kpiWrapper.classList.remove("kpi-activated");
+      void kpiWrapper.offsetWidth; // force reflow for re-trigger
+      kpiWrapper.classList.add("kpi-activated");
+    }
+    const delayWeeks = parseInt(document.getElementById('delayWeeks').value);
+    const hrRatio = parseInt(document.getElementById('hrRatio').value);
+    const conditionCount = document.getElementById('conditionList').children.length;
+
+    document.getElementById('delayDisplay').innerText = delayWeeks === 0 ? "현재 계획 유지" : delayWeeks + "주 연기";
+    document.getElementById('hrValDisplay').innerText = hrRatio + "%";
+
+    const baseRoHC = 11.2;
+    // Non-linear: delay gives diminishing returns (sqrt curve)
+    const delayEffect = delayWeeks > 0 ? 0.35 * Math.sqrt(delayWeeks) : 0;
+    // HR: S-curve - slow start, fast middle, plateau
+    const hrNorm = hrRatio / 100;
+    const hrEffect = 1.8 * (1 / (1 + Math.exp(-8 * (hrNorm - 0.4))));
+    // Conditions: slight complexity penalty
+    const conditionPenalty = conditionCount * 0.08;
+
+    let simulatedRoHC = baseRoHC + delayEffect + hrEffect - conditionPenalty;
+    simulatedRoHC = Math.round(simulatedRoHC * 10) / 10;
+
+    const kpiElement = document.getElementById('simulatedKPI');
+    const statusText = document.getElementById('kpiStatus');
+    kpiElement.innerText = simulatedRoHC.toFixed(1);
+
+    const hrNodeBorder = document.getElementById('hrNodeBorder');
+    const hrNodeBadge = document.getElementById('hrNodeBadge');
+    const profitNodeBorder = document.getElementById('profitNodeBorder');
+    const profitNodeBadge = document.getElementById('profitNodeBadge');
+    const svgArrowLine = document.getElementById('svgArrowLine');
+    const svgArrowHead = document.getElementById('svgArrowHead');
+    const dottedLine = document.getElementById('dottedLine');
+    const arrowText = document.getElementById('arrowText');
+    const projectStatusBadge = document.getElementById('projectStatusBadge');
+
+    if(simulatedRoHC >= 12.0) {
+      kpiElement.className = "text-[42px] font-black text-[#16a34a] tracking-tight leading-none";
+      statusText.innerText = "(목표 달성/안정)";
+      statusText.className = "text-xs font-bold text-[#16a34a]";
+
+      hrNodeBorder.className = "h-16 w-16 rounded-full border-4 border-[#16a34a] flex items-center justify-center text-sm font-bold text-[#555] node-circle bg-white transition-all duration-300 z-10 relative";
+      hrNodeBadge.className = "absolute -top-8 text-xs text-[#16a34a] font-bold whitespace-nowrap bg-[#F0FDF4] px-2 py-1 rounded border border-[#16a34a]/40 transition-all duration-300 z-20 node-badge-ok";
+      hrNodeBadge.innerText = "[확보] 가용 인력 " + hrRatio + "%";
+
+      profitNodeBorder.className = "h-20 w-20 rounded-full border-4 border-[#16a34a] shadow-[0_0_20px_rgba(22,163,74,0.3)] flex items-center justify-center text-base font-bold text-[#16a34a] node-circle bg-white transition-all duration-300 z-10 relative";
+      profitNodeBadge.className = "absolute -top-8 text-xs text-[#16a34a] font-bold whitespace-nowrap bg-[#F0FDF4] px-2 py-1 rounded border border-[#16a34a]/40 transition-all duration-300 z-20 node-badge-ok";
+      profitNodeBadge.innerText = "[안정] 목표 달성 (" + simulatedRoHC.toFixed(1) + "%)";
+
+      svgArrowLine.setAttribute("stroke", "#16a34a");
+      svgArrowLine.classList.remove("animate-pulse");
+      svgArrowHead.setAttribute("fill", "#16a34a");
+      dottedLine.setAttribute("stroke", "#16a34a");
+
+      arrowText.className = "text-[#16a34a] bg-[#16a34a]/10 border border-[#16a34a]/30 px-3 py-1.5 rounded-md text-xs font-bold shadow-md transition-all duration-300";
+      arrowText.innerHTML = "내부 인력 투입으로 원가 절감";
+
+      projectStatusBadge.className = "text-[#16a34a] font-bold";
+      projectStatusBadge.innerText = "자원 확보 및 안정화";
+    } else {
+      kpiElement.className = "text-[42px] font-black text-[#dc2020] tracking-tight leading-none";
+      statusText.innerText = "(목표 미달/위험)";
+      statusText.className = "text-xs font-bold text-[#dc2020]";
+
+      hrNodeBorder.className = "h-16 w-16 rounded-full border-4 border-[#dc2020] flex items-center justify-center text-sm font-bold text-[#555] node-circle bg-white transition-all duration-300 z-10 relative";
+      hrNodeBadge.className = "absolute -top-8 text-xs text-[#dc2020] font-bold whitespace-nowrap bg-red-50 px-2 py-1 rounded border border-red-300 transition-all duration-300 z-20 node-badge-danger";
+      hrNodeBadge.innerText = "[제약] 내부 가용 인력 부족";
+
+      profitNodeBorder.className = "h-20 w-20 rounded-full border-4 border-[#dc2020] shadow-[0_0_20px_rgba(230,0,0,0.4)] flex items-center justify-center text-base font-bold text-[#dc2020] node-circle bg-white animate-pulse transition-all duration-300 z-10 relative";
+      profitNodeBadge.className = "absolute -top-8 text-xs text-[#dc2020] font-bold whitespace-nowrap bg-red-50 px-2 py-1 rounded border border-red-300 transition-all duration-300 z-20 node-badge-danger";
+      profitNodeBadge.innerText = "[위험] 목표 미달 (" + simulatedRoHC.toFixed(1) + "%)";
+
+      svgArrowLine.setAttribute("stroke", "#dc2020");
+      svgArrowLine.classList.add("animate-pulse");
+      svgArrowHead.setAttribute("fill", "#dc2020");
+      dottedLine.setAttribute("stroke", "#dc2020");
+
+      arrowText.className = "text-[#dc2020] bg-[#dc2020]/10 border border-[#dc2020]/30 px-3 py-1.5 rounded-md text-xs font-bold shadow-md transition-all duration-300";
+      arrowText.innerHTML = "비싼 외주 투입으로 원가 상승";
+
+      projectStatusBadge.className = "text-[#dc2020] font-bold";
+      projectStatusBadge.innerText = "자원 부족 (위험)";
+    }
+  }
+
+  function toggleAiLog() {
+    const details = document.getElementById('aiLogDetails');
+    const icon = document.getElementById('aiLogToggleIcon');
+    if (details.style.maxHeight === '0px' || !details.style.maxHeight) {
+      details.style.maxHeight = '200px';
+      details.style.marginTop = '0.75rem';
+      details.style.opacity = '1';
+      icon.style.transform = 'rotate(180deg)';
+    } else {
+      details.style.maxHeight = '0px';
+      details.style.marginTop = '0px';
+      details.style.opacity = '0';
+      icon.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  function toggleDropdown() {
+    const menu = document.getElementById('projectMenu');
+    menu.classList.toggle('hidden');
+  }
+
+  function toggleMobileMenu() {
+    const menu = document.getElementById('mobileMenu');
+    menu.classList.toggle('hidden');
+  }
+
+  function rollbackState() {
+    document.getElementById('delayWeeks').value = 0;
+    document.getElementById('hrRatio').value = 0;
+    document.getElementById('conditionList').innerHTML = '';
+    updateKPI();
+    addTimelineEntry('시뮬레이션 초기 상태로 복구');
+    showToast('시뮬레이션이 초기 상태로 복구되었습니다.', 'info');
+  }
+
+  function submitApproval() {
+    showToast('권고안 결재 상신이 요청되었습니다. (ERP 연동)', 'success');
+    addTimelineEntry('권고안 결재 상신 요청');
+  }
+
+  function editAlternative() {
+    showToast('대안 수정 모드가 활성화되었습니다.', 'warning');
+    addTimelineEntry('대안 직접 수정 모드 진입');
+  }
+
+  function saveScenario() {
+    const kpi = document.getElementById('simulatedKPI').innerText;
+    showToast('시나리오가 저장되었습니다. (예측 이익률: ' + kpi + '%)', 'success');
+    addTimelineEntry('시나리오 저장 (RoHC ' + kpi + '%)');
+  }
+
+  // Theme toggle
+  function toggleTheme() {
+    document.body.classList.toggle('dark-theme');
+    const isDark = document.body.classList.contains('dark-theme');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    updateThemeIcon(isDark);
+  }
+
+  function updateThemeIcon(isDark) {
+    const icon = document.getElementById('themeIcon');
+    if (isDark) {
+      // Sun icon for dark mode (click to go to light)
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />';
+    } else {
+      // Moon icon for light mode (click to go to dark)
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />';
+    }
+  }
+
+  window.onclick = function(event) {
+    if (!event.target.closest('.project-dropdown-btn')) {
+      const menu = document.getElementById('projectMenu');
+      if (!menu.classList.contains('hidden')) menu.classList.add('hidden');
+    }
+    if (!event.target.closest('.mobile-menu-btn') && !event.target.closest('#mobileMenu')) {
+      const menu = document.getElementById('mobileMenu');
+      if (menu && !menu.classList.contains('hidden')) menu.classList.add('hidden');
+    }
+  }
+
+  window.onload = function() {
+    // Dark mode is default; only switch to light if user explicitly saved 'light'
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+      document.body.classList.remove('dark-theme');
+      updateThemeIcon(false);
+    } else {
+      updateThemeIcon(true);
+    }
+    updateKPI();
+    const details = document.getElementById('aiLogDetails');
+    details.style.maxHeight = '200px';
+    details.style.opacity = '1';
+  };
+</script>
+<style>
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes toast-out {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(100%); }
+  }
+  .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+  .animate-toast { animation: toast-in 0.3s ease-out forwards; }
+  .animate-toast-out { animation: toast-out 0.3s ease-in forwards; }
+  textarea::-webkit-scrollbar { width: 6px; }
+  textarea::-webkit-scrollbar-track { background: transparent; }
+  textarea::-webkit-scrollbar-thumb { background-color: #DDDDDD; border-radius: 10px; }
+  #chatMessages::-webkit-scrollbar { width: 4px; }
+  #chatMessages::-webkit-scrollbar-track { background: transparent; }
+  #chatMessages::-webkit-scrollbar-thumb { background-color: #DDDDDD; border-radius: 10px; }
+
+  /* Timeline time background matches panel */
+  .timeline-time-bg { background: #F4F4F4; }
+
+  /* ============================================================
+     LIGHT MODE ENHANCEMENTS — Premium Edition
+     Brand-infused warm palette with SK AX identity (#F5280B)
+     ============================================================ */
+
+  /* --- Page background: clean warm canvas --- */
+  body:not(.dark-theme) {
+    background: #FAFAFA !important;
+  }
+
+  /* --- Header: Dark + red accent line (A안) --- */
+  body:not(.dark-theme) header {
+    background: #1E1E1E !important;
+    border-bottom: none !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15) !important;
+    position: relative;
+  }
+  body:not(.dark-theme) header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(92deg, #FB9136, #F85F21, #F5280B);
+  }
+  /* Header children — white text on dark bg */
+  body:not(.dark-theme) header h1 { color: #FFFFFF !important; }
+  body:not(.dark-theme) header .header-divider { color: #555 !important; }
+  body:not(.dark-theme) header nav a:not(.text-\[\#F5280B\]) { color: rgba(255,255,255,0.55) !important; }
+  body:not(.dark-theme) header nav a:not(.text-\[\#F5280B\]):hover { color: #ffffff !important; }
+  body:not(.dark-theme) header nav a.text-\[\#F5280B\] { color: #F5280B !important; border-color: #F5280B !important; }
+  body:not(.dark-theme) header .header-actions { color: rgba(255,255,255,0.55) !important; }
+  body:not(.dark-theme) .header-icon-btn { color: rgba(255,255,255,0.55) !important; }
+  body:not(.dark-theme) .header-icon-btn:hover { color: #ffffff !important; }
+  body:not(.dark-theme) .notification-dot { background: #F5280B !important; border: 2px solid #1E1E1E !important; }
+  body:not(.dark-theme) .header-user-divider { border-color: #3a3a3a !important; }
+  body:not(.dark-theme) .header-user-avatar { background: #333 !important; }
+  body:not(.dark-theme) .header-user-avatar svg { color: rgba(255,255,255,0.6) !important; }
+  body:not(.dark-theme) .header-user-name { color: #FFFFFF !important; }
+  body:not(.dark-theme) .mobile-menu-btn { color: rgba(255,255,255,0.55) !important; }
+  body:not(.dark-theme) .mobile-menu-btn:hover { color: #ffffff !important; }
+  body:not(.dark-theme) #mobileMenu { background: #1E1E1E !important; border-color: #3a3a3a !important; }
+  body:not(.dark-theme) #mobileMenu a { border-color: #3a3a3a !important; }
+  body:not(.dark-theme) #mobileMenu a:not(.text-\[\#F5280B\]) { color: rgba(255,255,255,0.6) !important; }
+  body:not(.dark-theme) #mobileMenu a:not(.text-\[\#F5280B\]):hover { background: #333 !important; color: #ffffff !important; }
+
+  /* --- Card elevation: shadow + fine outline --- */
+  body:not(.dark-theme) main > section {
+    background: #FFFFFF !important;
+    border: 1px solid #E5E2DF !important;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.04),
+      0 4px 12px rgba(0,0,0,0.06) !important;
+  }
+
+  /* --- Inner panels: warm tinted recessed areas --- */
+  body:not(.dark-theme) .inner-panel,
+  body:not(.dark-theme) .inner-panel-light {
+    background: #F8F6F4 !important;
+    border-color: #E8E4E0 !important;
+  }
+  body:not(.dark-theme) .node-map-container {
+    background: linear-gradient(135deg, #F8F6F4 0%, #F5F2EF 100%) !important;
+    border-color: #E8E4E0 !important;
+  }
+  body:not(.dark-theme) .sim-panel {
+    background: #E8E5E2 !important;
+    border-color: #E8E4E0 !important;
+  }
+
+  body:not(.dark-theme) .project-meta {
+    background: #F8F6F4 !important;
+    border-color: #E8E4E0 !important;
+  }
+  body:not(.dark-theme) .chat-input-box {
+    background: #FFFFFF !important;
+    border-color: #E0DCD8 !important;
+  }
+  body:not(.dark-theme) .chat-input-box:focus-within {
+    background: #FFFFFF !important;
+    border-color: #F5280B !important;
+    box-shadow: 0 0 0 3px rgba(245, 40, 11, 0.08), 0 2px 8px rgba(245, 40, 11, 0.06) !important;
+  }
+
+  /* --- Section titles: accent dot indicator --- */
+  body:not(.dark-theme) .section-title {
+    color: #1A1A1A !important;
+    position: relative;
+    padding-left: 12px;
+  }
+  body:not(.dark-theme) .section-title::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 16px;
+    background: linear-gradient(180deg, #FB9136, #F5280B);
+    border-radius: 2px;
+  }
+
+  /* --- Left panel --- */
+
+  /* --- Alert: vivid danger gradient --- */
+  body:not(.dark-theme) .alert-danger-bg {
+    background: linear-gradient(to right, #FEE2E2, #FFF0EE, #FFFFFF) !important;
+    box-shadow: inset 0 0 20px rgba(220, 32, 32, 0.03);
+  }
+
+  /* --- AI Judgment panel: warm accent border glow --- */
+  body:not(.dark-theme) .ai-judgment-panel {
+    background: linear-gradient(135deg, rgba(245,40,11,0.02) 0%, rgba(251,145,54,0.02) 100%) !important;
+    border-color: rgba(245, 40, 11, 0.2) !important;
+    box-shadow: 0 0 20px rgba(245, 40, 11, 0.04);
+  }
+
+  /* --- Chat bubbles: branded --- */
+  .chat-user-inner {
+    background: #EDE9E5;
+    color: #1A1A1A;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .chat-ai-inner {
+    background: linear-gradient(135deg, rgba(251,145,54,0.06) 0%, rgba(245,40,11,0.06) 100%);
+    border: 1px solid rgba(245, 40, 11, 0.15);
+    color: #2A2A2A;
+    box-shadow: 0 1px 3px rgba(245, 40, 11, 0.04);
+  }
+
+  /* --- Condition pills: warm accent tint --- */
+  .condition-pill {
+    background: linear-gradient(135deg, #F5280B12 0%, #FB913612 100%);
+    border: 1px solid rgba(245, 40, 11, 0.15);
+    color: #4A3530;
+    font-weight: 500;
+  }
+  .condition-pill-close {
+    color: rgba(245, 40, 11, 0.4);
+    transition: color 0.2s;
+  }
+  .condition-pill-close:hover {
+    color: #F5280B;
+  }
+
+  /* --- Evidence badges: warm tint --- */
+  body:not(.dark-theme) .evidence-badge {
+    background: #EDE9E5 !important;
+    color: #1A1A1A !important;
+    border: 1px solid #DDD8D3;
+  }
+
+  /* --- Evidence link buttons: subtle warmth --- */
+  body:not(.dark-theme) .evidence-link {
+    background: #FFFFFF !important;
+    border-color: #E0DCD8 !important;
+    color: #555 !important;
+  }
+  body:not(.dark-theme) .evidence-link:hover {
+    background: #F5280B !important;
+    border-color: #F5280B !important;
+    color: #FFFFFF !important;
+  }
+
+  /* --- Primary action area highlight --- */
+  body:not(.dark-theme) .btn-secondary {
+    background: #FFFFFF !important;
+    border: 1.5px solid #DDD8D3 !important;
+    color: #333 !important;
+    font-weight: 600;
+  }
+  body:not(.dark-theme) .btn-secondary:hover {
+    background: #EDE9E5 !important;
+    border-color: #C8C3BE !important;
+    color: #111 !important;
+  }
+
+  /* --- Report buttons: refined warm --- */
+  body:not(.dark-theme) .report-btn {
+    border-color: #DDD8D3 !important;
+    color: #555 !important;
+  }
+  body:not(.dark-theme) .report-btn:hover {
+    background: #F8F6F4 !important;
+    border-color: #F5280B !important;
+    color: #F5280B !important;
+  }
+
+  /* --- KPI section: accent presence --- */
+  body:not(.dark-theme) .kpi-arrow {
+    color: #C8C3BE !important;
+  }
+  body:not(.dark-theme) .kpi-asis-label {
+    color: #999 !important;
+  }
+  body:not(.dark-theme) .kpi-save-btn {
+    background: #FFFFFF !important;
+    border-color: #DDD8D3 !important;
+    color: #555 !important;
+  }
+  body:not(.dark-theme) .kpi-save-btn:hover {
+    background: #EDE9E5 !important;
+    border-color: #C8C3BE !important;
+    color: #333 !important;
+  }
+
+  /* --- Simulation controls --- */
+  body:not(.dark-theme) .sim-add-btn {
+    background: #FFFFFF !important;
+    border-color: #DDD8D3 !important;
+  }
+  body:not(.dark-theme) .sim-add-btn:hover {
+    border-color: #F5280B !important;
+    color: #F5280B !important;
+    background: rgba(245, 40, 11, 0.04) !important;
+  }
+  body:not(.dark-theme) .sim-label {
+    color: #777 !important;
+  }
+  body:not(.dark-theme) .sim-value {
+    color: #1A1A1A !important;
+    font-weight: 700;
+  }
+  body:not(.dark-theme) .sim-compare-title {
+    color: #1A1A1A !important;
+  }
+
+  /* --- Node map: warm treatment --- */
+  body:not(.dark-theme) .node-circle {
+    background: #FFFFFF !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  body:not(.dark-theme) .node-static {
+    color: #555 !important;
+  }
+  body:not(.dark-theme) .node-sublabel {
+    color: #888 !important;
+  }
+  body:not(.dark-theme) .node-badge-danger {
+    background: #FEF2F2 !important;
+    border-color: rgba(220, 32, 32, 0.4) !important;
+    box-shadow: 0 2px 6px rgba(220, 32, 32, 0.08);
+  }
+
+  /* --- Timeline: accent active state --- */
+  body:not(.dark-theme) .timeline-line {
+    background: #E0DCD8 !important;
+  }
+  body:not(.dark-theme) .timeline-active {
+    color: #1A1A1A !important;
+  }
+  body:not(.dark-theme) .timeline-active .timeline-time {
+    background: rgba(245, 40, 11, 0.08) !important;
+    color: #F5280B !important;
+    border-radius: 4px;
+    padding: 1px 6px !important;
+  }
+
+  /* --- Dropdown: polished --- */
+  body:not(.dark-theme) .project-dropdown-btn {
+    background: #FFFFFF !important;
+    border-color: #DDD8D3 !important;
+  }
+  body:not(.dark-theme) .project-dropdown-btn:hover {
+    background: #EDE9E5 !important;
+    border-color: #C8C3BE !important;
+  }
+  body:not(.dark-theme) #projectMenu {
+    border-color: #E0DCD8 !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04) !important;
+  }
+
+  /* --- Chat area: branded zone --- */
+  body:not(.dark-theme) .card-border-b {
+    border-color: #E8E4E0 !important;
+  }
+
+  /* --- AI sync bar refinement --- */
+  body:not(.dark-theme) .ai-sync-bar {
+    border-color: #E0DCD8 !important;
+    color: #777 !important;
+  }
+  body:not(.dark-theme) .ai-log-item {
+    color: #666 !important;
+  }
+
+  /* --- Scrollbar warm tint --- */
+  body:not(.dark-theme) textarea::-webkit-scrollbar-thumb {
+    background-color: #D8D4D0 !important;
+  }
+  body:not(.dark-theme) #chatMessages::-webkit-scrollbar-thumb {
+    background-color: #D8D4D0 !important;
+  }
+
+  /* --- Right column header border --- */
+  body:not(.dark-theme) .right-header-border {
+    border-color: #E8E4E0 !important;
+  }
+
+  /* --- Range input accent --- */
+  body:not(.dark-theme) input[type="range"] {
+    accent-color: #F5280B;
+  }
+  body:not(.dark-theme) input[type="range"]::-webkit-slider-runnable-track {
+    background: linear-gradient(to right, rgba(245,40,11,0.3), rgba(245,40,11,0.12));
+    border-radius: 4px;
+  }
+
+  /* --- Rollback button --- */
+  body:not(.dark-theme) .btn-rollback {
+    color: #AAA !important;
+  }
+  body:not(.dark-theme) .btn-rollback:hover {
+    color: #F5280B !important;
+  }
+
+  /* ============================================================
+     DARK THEME OVERRIDES
+     All rules use body.dark-theme prefix for specificity
+     ============================================================ */
+
+  /* --- Page body --- */
+  body.dark-theme { background: #1a1a1a !important; color: #fff !important; }
+
+  /* --- Header --- */
+  body.dark-theme header { background: #111 !important; border-color: #3a3a3a !important; }
+  body.dark-theme header h1 { color: #fff !important; }
+  body.dark-theme header .header-divider { color: #4b5563 !important; }
+  body.dark-theme header nav a:not(.text-\[\#F5280B\]) { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme header nav a:not(.text-\[\#F5280B\]):hover { color: #ffffff !important; }
+  body.dark-theme header .header-actions { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .mobile-menu-btn { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .mobile-menu-btn:hover { color: #ffffff !important; }
+  body.dark-theme .notification-dot { border-color: #111 !important; }
+  body.dark-theme .header-user-divider { border-color: rgba(255,255,255,0.08) !important; }
+  body.dark-theme .header-user-avatar { background: #424242 !important; }
+  body.dark-theme .header-user-avatar svg { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .header-user-name { color: #fff !important; }
+  body.dark-theme .header-icon-btn { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .header-icon-btn:hover { color: #ffffff !important; }
+
+  /* --- Mobile Menu --- */
+  body.dark-theme #mobileMenu { background: #111 !important; border-color: #3a3a3a !important; }
+  body.dark-theme #mobileMenu a { border-color: #3a3a3a !important; }
+  body.dark-theme #mobileMenu a:not(.text-\[\#F5280B\]) { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme #mobileMenu a:not(.text-\[\#F5280B\]):hover { background: #252525 !important; color: #ffffff !important; }
+  body.dark-theme #mobileMenu a.mobile-nav-active { background: #252525 !important; }
+
+  /* --- Main section cards: layered depth --- */
+  body.dark-theme main > section { background: #2a2a2a !important; border-color: rgba(255,255,255,0.06) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 1px rgba(255,255,255,0.05) !important; }
+
+  /* --- Section titles --- */
+  body.dark-theme .section-title { color: #fff !important; padding-left: 12px; position: relative; }
+  body.dark-theme .section-title::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 16px;
+    background: linear-gradient(180deg, #FB9136, #F5280B);
+    border-radius: 2px;
+  }
+
+  /* --- Inner panels: recessed depth with transparency --- */
+  body.dark-theme .inner-panel { background: rgba(0,0,0,0.25) !important; border-color: rgba(255,255,255,0.04) !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2) !important; }
+  body.dark-theme .inner-panel-light { background: rgba(0,0,0,0.15) !important; border-color: rgba(255,255,255,0.04) !important; }
+
+  /* --- AI status panel --- */
+  body.dark-theme .ai-status-toggle svg { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .ai-status-toggle:hover svg { color: #ffffff !important; }
+  body.dark-theme .ai-sync-bar { border-color: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .ai-log-item { color: rgba(255,255,255,0.6) !important; }
+
+  /* --- Timeline --- */
+  body.dark-theme .timeline-line { background: rgba(255,255,255,0.06) !important; }
+  body.dark-theme #timelineList .timeline-entry:not(.timeline-active) { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme #timelineList .timeline-active { color: #fff !important; }
+  body.dark-theme .timeline-time-bg { background: #252525 !important; }
+  body.dark-theme #timelineList .text-gray-400 { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme #timelineList .text-\[\#555\] { color: rgba(255,255,255,0.6) !important; }
+
+  /* --- Center card inner elements --- */
+  body.dark-theme .card-border-b { border-color: rgba(255,255,255,0.06) !important; }
+  body.dark-theme .project-dropdown-btn { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.08) !important; color: #fff !important; }
+  body.dark-theme .project-dropdown-btn:hover { background: #424242 !important; }
+  body.dark-theme #projectMenu { background: #2a2a2a !important; border-color: rgba(255,255,255,0.08) !important; box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.05) !important; }
+  body.dark-theme .project-menu-header { background: rgba(0,0,0,0.3) !important; color: rgba(255,255,255,0.6) !important; border-color: #3a3a3a !important; }
+  body.dark-theme .project-menu-active { background: rgba(245,40,11,0.08) !important; color: #fff !important; }
+  body.dark-theme .project-menu-item { color: rgba(255,255,255,0.6) !important; border-color: #3a3a3a !important; }
+  body.dark-theme .project-menu-item:hover { background: rgba(255,255,255,0.08) !important; }
+  body.dark-theme .project-meta { background: rgba(0,0,0,0.2) !important; border-color: rgba(255,255,255,0.04) !important; }
+  body.dark-theme .project-meta .meta-label { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .project-meta .meta-value { color: rgba(255,255,255,0.8) !important; }
+
+  /* --- Alert box --- */
+  body.dark-theme .alert-danger-bg { background: linear-gradient(to right, rgba(127,29,29,0.25), rgba(42,42,42,0.8)) !important; }
+  body.dark-theme .alert-danger-bg p { color: rgba(255,255,255,0.8) !important; }
+
+  /* --- AI judgment panel --- */
+  body.dark-theme .ai-judgment-panel { background: rgba(0,0,0,0.3) !important; border-color: rgba(245,40,11,0.25) !important; box-shadow: inset 0 1px 4px rgba(0,0,0,0.15), 0 0 15px rgba(245,40,11,0.03) !important; }
+  body.dark-theme .evidence-list li span:not(.bg-\[\#F5280B\]):not(.text-\[\#F5280B\]) { color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .evidence-badge { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+  body.dark-theme .evidence-link { background: rgba(255,255,255,0.06) !important; color: rgba(255,255,255,0.6) !important; border-color: rgba(255,255,255,0.08) !important; }
+  body.dark-theme .evidence-link:hover { background: rgba(245,40,11,0.15) !important; color: #F5280B !important; border-color: rgba(245,40,11,0.3) !important; }
+  body.dark-theme .evidence-highlight { color: #fff !important; }
+
+  /* --- Buttons --- */
+  body.dark-theme .btn-secondary { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .btn-secondary:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; border-color: rgba(255,255,255,0.15) !important; }
+  body.dark-theme .btn-rollback { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .btn-rollback:hover { color: rgba(255,255,255,0.8) !important; }
+
+  /* --- Chat --- */
+  body.dark-theme .chat-title { color: #fff !important; }
+  body.dark-theme .chat-ai-bubble { color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .chat-user-bubble { color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .chat-user-inner { background: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.9) !important; box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important; }
+  body.dark-theme .chat-ai-inner { background: rgba(245,40,11,0.06) !important; border-color: rgba(245,40,11,0.12) !important; color: rgba(255,255,255,0.85) !important; }
+  body.dark-theme .confidence-badge { background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.3) !important; color: #4ade80 !important; }
+  body.dark-theme .chat-typing-bubble { background: #363636 !important; border-color: #3a3a3a !important; color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .chat-input-box { background: rgba(0,0,0,0.3) !important; border-color: rgba(255,255,255,0.06) !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15) !important; }
+  body.dark-theme .chat-input-box textarea { color: #fff !important; }
+  body.dark-theme .chat-input-box textarea::placeholder { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .chat-toolbar-btn { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .chat-toolbar-btn:hover { color: #F5280B !important; }
+
+  /* --- Right column --- */
+  body.dark-theme .right-header-border { border-color: rgba(255,255,255,0.06) !important; }
+  body.dark-theme .report-btn { border-color: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.7) !important; }
+  body.dark-theme .report-btn:hover { background: rgba(245,40,11,0.1) !important; border-color: rgba(245,40,11,0.3) !important; color: #F5280B !important; }
+
+  /* --- Node map --- */
+  body.dark-theme .node-map-container { background: rgba(0,0,0,0.25) !important; border-color: rgba(255,255,255,0.04) !important; box-shadow: inset 0 2px 6px rgba(0,0,0,0.2) !important; }
+  body.dark-theme .node-circle { background: #333 !important; color: rgba(255,255,255,0.85) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important; }
+  body.dark-theme .node-static { color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .node-sublabel { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .node-badge-danger { background: rgba(127,29,29,0.3) !important; border-color: rgba(239,68,68,0.5) !important; }
+  body.dark-theme .node-badge-ok { background: rgba(124,45,18,0.3) !important; }
+
+  /* --- Simulation section --- */
+  body.dark-theme .sim-compare-title { color: #fff !important; }
+  body.dark-theme .sim-add-btn { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.7) !important; }
+  body.dark-theme .sim-add-btn:hover { border-color: #F5280B !important; color: #F5280B !important; }
+  body.dark-theme .sim-panel { background: rgba(0,0,0,0.3) !important; border-color: rgba(255,255,255,0.04) !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2) !important; }
+  body.dark-theme .sim-label { color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .sim-value { color: #fff !important; }
+
+  /* --- KPI result box --- */
+  body.dark-theme .kpi-result-title { color: #fff !important; }
+  body.dark-theme .kpi-save-btn { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.08) !important; color: rgba(255,255,255,0.6) !important; }
+  body.dark-theme .kpi-save-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.15) !important; color: rgba(255,255,255,0.8) !important; }
+
+  body.dark-theme .kpi-asis-label { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .kpi-asis-value { color: #fff !important; }
+  body.dark-theme .kpi-asis-unit { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .kpi-arrow { color: rgba(255,255,255,0.3) !important; }
+
+  /* --- Condition pills --- */
+  body.dark-theme .condition-pill { background: rgba(245,40,11,0.1) !important; border: 1px solid rgba(245,40,11,0.2) !important; color: rgba(255,255,255,0.8) !important; }
+  body.dark-theme .condition-pill-close { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .condition-pill-close:hover { color: rgba(255,255,255,0.8) !important; }
+
+  /* --- Scrollbars in dark mode --- */
+  body.dark-theme textarea::-webkit-scrollbar-thumb { background-color: #424242 !important; }
+  body.dark-theme #chatMessages::-webkit-scrollbar-thumb { background-color: #3a3a3a !important; }
+
+  /* --- Toast in dark mode --- */
+  body.dark-theme .animate-toast { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5) !important; }
+
+  /* --- KPI Result: elevated hero treatment --- */
+  /* --- Sim + KPI group: visual connection --- */
+  .sim-kpi-group {
+    background: #F8F6F4;
+    border: 1px solid #E8E4E0;
+    border-radius: 16px;
+    padding: 16px;
+  }
+  body.dark-theme .sim-kpi-group {
+    background: rgba(0,0,0,0.15) !important;
+    border-color: rgba(255,255,255,0.04) !important;
+  }
+
+  .kpi-result-wrapper {
+    position: relative;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* --- KPI Result: Light mode — elevated white card, emphasis via space --- */
+  .kpi-result-wrapper .kpi-result-box {
+    background: #FFFFFF;
+    border: 1px solid #E0DCD8;
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.04),
+      0 6px 20px rgba(0,0,0,0.06);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .kpi-result-wrapper .kpi-asis-label { color: #999 !important; }
+  .kpi-result-wrapper .kpi-asis-value { color: #111 !important; }
+  .kpi-result-wrapper .kpi-asis-unit { color: #999 !important; }
+  .kpi-result-wrapper .kpi-arrow { color: #D0CCC8 !important; }
+  .kpi-result-wrapper .kpi-result-title { color: #333 !important; }
+
+  /* Activation state */
+  .kpi-result-wrapper.kpi-activated .kpi-result-box {
+    box-shadow:
+      0 2px 6px rgba(0,0,0,0.04),
+      0 8px 28px rgba(0,0,0,0.08);
+  }
+  @keyframes kpiPulse {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.015); }
+    100% { transform: scale(1); }
+  }
+  .kpi-result-wrapper.kpi-activated {
+    animation: kpiPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* --- KPI Result: Dark mode — subtle elevated surface with warm tint --- */
+  body.dark-theme .kpi-result-wrapper .kpi-result-box {
+    background: #3a3a3a !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow:
+      0 2px 8px rgba(0,0,0,0.25),
+      0 0 1px rgba(255,255,255,0.06),
+      inset 0 1px 0 rgba(255,255,255,0.04) !important;
+  }
+  body.dark-theme .kpi-result-wrapper .kpi-asis-label { color: rgba(255,255,255,0.4) !important; }
+  body.dark-theme .kpi-result-wrapper .kpi-asis-value { color: #fff !important; }
+  body.dark-theme .kpi-result-wrapper .kpi-asis-unit { color: rgba(255,255,255,0.35) !important; }
+  body.dark-theme .kpi-result-wrapper .kpi-arrow { color: rgba(255,255,255,0.15) !important; }
+  body.dark-theme .kpi-result-wrapper .kpi-result-title { color: #fff !important; }
+  body.dark-theme #kpiSimLabel { color: rgba(255,255,255,0.5) !important; }
+  body.dark-theme .kpi-result-wrapper.kpi-activated .kpi-result-box {
+    box-shadow:
+      0 4px 16px rgba(0,0,0,0.3),
+      0 0 1px rgba(255,255,255,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.06) !important;
+  }
+
+    /* --- Responsive height: viewport-adaptive --- */
+  .chat-messages-scroll {
+    max-height: clamp(60px, 15vh, 220px);
+  }
+  .node-map-height {
+    height: clamp(220px, 28vh, 280px);
+    flex-shrink: 0;
+  }
+
+  @media (max-height: 1080px) {
+    .chat-messages-scroll { max-height: 140px; }
+    .node-map-height { height: 220px; }
+  }
+
+  @media (max-height: 960px) {
+    main.flex-1 { padding: 12px !important; gap: 12px !important; }
+    main.flex-1 > section { padding: 12px !important; gap: 12px !important; }
+    .chat-messages-scroll { max-height: 80px; }
+    .node-map-height { height: 180px; }
+    .chat-input-box { min-height: 70px !important; }
+    .chat-input-box textarea { height: 32px !important; }
+    #aiLogDetails { max-height: 120px !important; }
+    #timelineList { max-height: 200px !important; }
+  }
+
+  @media (max-height: 800px) {
+    .chat-messages-scroll { max-height: 60px; }
+    .node-map-height { height: 160px; }
+    .chat-input-box { min-height: 60px !important; }
+    #aiLogDetails { max-height: 80px !important; }
+    #timelineList { max-height: 150px !important; }
+  }
+
+    /* --- Confidence badge subtle pulse --- */
+  @keyframes subtlePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.3); }
+  }
+  .confidence-dot {
+    animation: subtlePulse 2.5s ease-in-out infinite;
+  }
+
+  /* --- Dark mode: refined header border glow --- */
+  body.dark-theme header {
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 12px rgba(0,0,0,0.3) !important;
+  }
+  body.dark-theme header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245,40,11,0.3), transparent);
+  }
+
+  /* --- Dark mode: card hover subtle lift --- */
+  body.dark-theme main > section {
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+  body.dark-theme main > section:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 1px rgba(255,255,255,0.08) !important;
+  }
+
+  /* --- Node map inner offset --- */
+  .node-map-inner { margin-top: -30px; }
+</style>
+</head>
+<body class="bg-[#F4F4F4] text-[#111] h-screen flex flex-col m-0 overflow-hidden font-sans dark-theme">
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed top-20 right-6 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Header / GNB -->
+  <header class="flex justify-between items-center bg-white border-b border-[#E6E6E6] px-4 lg:px-6 py-4 h-16 relative z-50 shadow-sm" data-figma-component="GNB-Header">
+    <div class="flex items-center gap-3">
+      <!-- Mobile hamburger -->
+      <button onclick="toggleMobileMenu()" class="mobile-menu-btn lg:hidden text-[#555] hover:text-[#111] transition">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+      </button>
+      <h1 class="text-xl font-bold flex items-center tracking-tight text-[#111]">SK AX <span class="header-divider text-gray-300 px-2 font-light">|</span> AI SCM</h1>
+    </div>
+
+    <nav class="hidden lg:flex gap-8 text-sm font-bold absolute left-1/2 transform -translate-x-1/2 h-full items-center">
+      <a href="#" class="text-[#555] hover:text-[#111] transition">통합 대시보드</a>
+      <a href="#" class="text-[#F5280B] h-full flex items-center border-b-2 border-[#F5280B]">AI S&OP 시뮬레이션</a>
+      <a href="#" class="text-[#555] hover:text-[#111] transition">인력 풀 통합 관리</a>
+      <a href="#" class="text-[#555] hover:text-[#111] transition">시스템 설정</a>
+    </nav>
+
+    <!-- Mobile menu -->
+    <div id="mobileMenu" class="hidden lg:hidden absolute top-16 left-0 right-0 bg-white border-b border-[#E6E6E6] z-50 shadow-2xl">
+      <nav class="flex flex-col text-sm font-bold">
+        <a href="#" class="px-6 py-3 text-[#555] hover:bg-[#F4F4F4] hover:text-[#111] transition border-b border-[#E6E6E6]">통합 대시보드</a>
+        <a href="#" class="px-6 py-3 text-[#F5280B] bg-[#F4F4F4] border-b border-[#E6E6E6] mobile-nav-active">AI S&OP 시뮬레이션</a>
+        <a href="#" class="px-6 py-3 text-[#555] hover:bg-[#F4F4F4] hover:text-[#111] transition border-b border-[#E6E6E6]">인력 풀 통합 관리</a>
+        <a href="#" class="px-6 py-3 text-[#555] hover:bg-[#F4F4F4] hover:text-[#111] transition">시스템 설정</a>
+      </nav>
+    </div>
+
+    <div class="flex items-center gap-3 lg:gap-5 text-[#555] header-actions">
+      <!-- Theme toggle button -->
+      <button onclick="toggleTheme()" class="header-icon-btn hover:text-[#F5280B] transition hidden sm:block" title="테마 전환" id="themeToggleBtn">
+        <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
+      </button>
+      <button class="header-icon-btn hover:text-[#111] transition hidden sm:block" title="검색">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+      </button>
+      <button class="header-icon-btn hover:text-[#111] transition relative" title="알림">
+        <span class="notification-dot absolute top-0 right-0 w-2 h-2 bg-[#dc2020] rounded-full border border-white"></span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+      </button>
+      <div class="hidden sm:flex items-center pl-2 border-l border-[#DDDDDD] header-user-divider">
+        <div class="w-7 h-7 bg-[#E5E5E5] rounded-full flex items-center justify-center mr-2 header-user-avatar">
+           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-[#555]"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+        </div>
+        <span class="text-sm font-bold text-[#555] header-user-name">홍길동 매니저</span>
+      </div>
+      <button class="header-icon-btn hover:text-[#111] transition hidden sm:block" title="로그아웃">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 p-4 lg:p-6 h-[calc(100vh-64px)] overflow-y-auto lg:overflow-hidden">
+
+    <!-- Left Column -->
+    <section class="lg:col-span-3 bg-white rounded-[12px] border border-[#E6E6E6] p-4 lg:p-6 flex flex-col gap-6 shadow-[0_0_20px_0_rgba(0,0,0,0.08)] lg:overflow-y-auto order-2 lg:order-1" data-figma-component="Left-Panel">
+      <div>
+        <h2 class="section-title text-[#111] text-base font-bold mb-3">AI 분석 상태</h2>
+        <div class="inner-panel bg-[#F4F4F4] p-4 rounded-lg border border-[#DDDDDD] relative shadow-inner" data-figma-component="AI-Status-Card">
+          <div class="flex items-center justify-between cursor-pointer group ai-status-toggle" onclick="toggleAiLog()">
+            <div class="flex items-center gap-2 text-[#F5280B] font-bold text-sm">
+              <span id="aiStatusIcon" class="animate-pulse h-3 w-3 bg-[#F5280B] rounded-full shrink-0"></span>
+              <span id="aiStatusText">S&OP 리소스 최적화 대기 중</span>
+            </div>
+            <button class="text-gray-400 group-hover:text-[#111] transition p-1">
+              <svg id="aiLogToggleIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 transition-transform duration-300 transform rotate-180"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+          </div>
+          <div class="text-[11px] text-[#555] mt-2 pb-2 flex items-center gap-1.5 border-b border-[#DDDDDD] ai-sync-bar">
+             <span class="text-green-500 animate-pulse">●</span> 데이터 최종 동기화: 오늘 13:45 (ERP/HR)
+          </div>
+          <div id="aiLogDetails" class="transition-all duration-300 overflow-hidden" style="max-height: 200px; opacity: 1; margin-top: 0.75rem; overflow: hidden; transition: all 0.4s ease;">
+             <div class="space-y-2 mt-2">
+               <div class="text-xs text-[#555] flex gap-2 items-center ai-log-item"><span class="text-green-500 font-bold bg-green-500/10 p-0.5 rounded">✓</span> <span>HR 가동률 데이터 패치 완료</span></div>
+               <div class="text-xs text-[#555] flex gap-2 items-center ai-log-item"><span class="text-green-500 font-bold bg-green-500/10 p-0.5 rounded">✓</span> <span>ERP 원가 데이터 동기화 완료</span></div>
+               <div class="text-xs text-[#555] flex gap-2 items-center ai-log-item"><span class="text-green-500 font-bold bg-green-500/10 p-0.5 rounded">✓</span> <span>과거 유사 사례(3건) 로드 완료</span></div>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="section-title text-[#111] text-base font-bold mb-3">의사결정 이력 타임라인</h2>
+        <div id="timelineList" class="inner-panel-light bg-[#F4F4F4] p-4 rounded-lg border border-[#E6E6E6] space-y-4 text-sm relative max-h-[300px] overflow-y-auto" data-figma-component="Decision-Timeline-Card">
+          <div class="timeline-line absolute left-[38px] top-6 bottom-6 w-px bg-[#DDDDDD]"></div>
+          <div class="flex gap-3 text-[#555] relative z-10 timeline-entry"><span class="timeline-time text-gray-400 timeline-time-bg px-1 text-xs mt-0.5 shrink-0">03.13 14:00</span><span>인력 부족 리스크 감지</span></div>
+          <div class="flex gap-3 text-[#555] relative z-10 timeline-entry"><span class="timeline-time text-gray-400 timeline-time-bg px-1 text-xs mt-0.5 shrink-0">03.13 14:15</span><span>AI 대안 시나리오 생성</span></div>
+          <div class="flex gap-3 text-[#111] font-bold relative z-10 timeline-active timeline-entry"><span class="timeline-time text-[#F5280B] timeline-time-bg px-1 text-xs mt-0.5 shrink-0">03.13 14:30</span><span>사용자 의사결정 대기 중</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Center Column -->
+    <section class="lg:col-span-5 bg-white rounded-[12px] border border-[#E6E6E6] p-4 lg:p-6 flex flex-col gap-4 shadow-[0_0_20px_0_rgba(0,0,0,0.08)] relative z-40 order-1 lg:order-2 lg:overflow-y-auto" data-figma-component="Center-Panel">
+
+      <!-- Project Selection & Metadata -->
+      <div class="border-b border-[#E6E6E6] pb-4 card-border-b" data-figma-component="Decision-Workspace-Card">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="section-title text-base lg:text-lg font-bold text-[#111]">AI 투명 의사결정 워크스페이스</h2>
+          <div class="relative">
+            <button onclick="toggleDropdown()" class="project-dropdown-btn flex items-center gap-2 bg-[#F4F4F4] border border-[#DDDDDD] text-[#555] px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-[#F2F2F2] transition shadow-sm">
+              <span class="hidden sm:inline">대상 프로젝트:</span> SK AX 플랫폼 3차 구축
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+            <div id="projectMenu" class="absolute right-0 mt-2 w-full min-w-[220px] bg-white border border-[#E6E6E6] rounded-lg shadow-2xl hidden z-50">
+              <div class="project-menu-header px-3 py-2 text-xs text-gray-400 border-b border-[#E6E6E6] font-bold bg-[#F4F4F4] rounded-t-lg">관리 중인 프로젝트 (3)</div>
+              <a href="#" class="project-menu-active block px-3 py-2.5 text-sm text-[#111] bg-[#F4F4F4]/50 font-bold border-l-2 border-[#F5280B]">SK AX 플랫폼 3차 구축</a>
+              <a href="#" class="project-menu-item block px-3 py-2.5 text-sm text-[#555] hover:bg-[#F2F2F2] transition border-t border-[#E6E6E6]">차세대 ERP 인프라 연동</a>
+              <a href="#" class="project-menu-item block px-3 py-2.5 text-sm text-[#555] hover:bg-[#F2F2F2] transition border-t border-[#E6E6E6]">글로벌 물류 AI 최적화</a>
+            </div>
+          </div>
+        </div>
+        <div class="project-meta flex flex-wrap gap-3 lg:gap-6 text-xs text-[#555] bg-[#F4F4F4] p-2.5 rounded-lg border border-[#E6E6E6]/50">
+          <div><span class="meta-label text-gray-400 mr-1">총 예산:</span> <span class="meta-value font-bold text-[#555]">38.5억 KRW</span></div>
+          <div><span class="meta-label text-gray-400 mr-1">수행 기간:</span> <span class="meta-value font-bold text-[#555]">26.04 ~ 26.11</span></div>
+          <div><span class="meta-label text-gray-400 mr-1">현재 상태:</span> <span id="projectStatusBadge" class="text-[#dc2020] font-bold">자원 부족 (위험)</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="alert-danger-bg border-l-4 border-[#dc2020] bg-gradient-to-r from-[#FFF7F5] to-white p-3.5 rounded-r-lg shadow-inner">
+          <h3 class="text-[#dc2020] font-bold mb-1 flex items-center gap-2 text-base">🚨 [위험] 목표 이익률(12.0%) 달성 불가 예상</h3>
+          <p class="text-sm text-[#555]">내부 개발자가 0명입니다. 외주 투입 시 이익률이 11.2%로 하락합니다.</p>
+        </div>
+      </div>
+
+      <div class="ai-judgment-panel border border-[#F5280B]/40 bg-[#F4F4F4]/60 p-4 lg:p-5 rounded-xl relative shadow-lg flex-1 flex flex-col justify-between" data-figma-component="AI-Judgment-Panel">
+        <div>
+          <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+             <h3 class="text-[#F5280B] font-bold text-base flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.757 17.834a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" /></svg>
+               AI 판단 근거 및 데이터 출처
+             </h3>
+             <div class="confidence-badge flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
+               <span class="confidence-dot inline-block w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+               예측 신뢰도: 94% (High)
+             </div>
+          </div>
+          <ul class="evidence-list text-sm space-y-3.5 text-[#555] mb-4">
+            <li class="flex items-center gap-2 flex-wrap">
+              <span class="evidence-badge bg-[#E5E5E5] text-[#111] px-2 py-0.5 rounded text-xs font-bold h-fit shrink-0">확인</span>
+              <span>현재 전사 가동률 98% (여유 없음)</span>
+              <a href="#" class="evidence-link ml-auto flex items-center gap-1 text-xs font-bold text-[#555] bg-[#F4F4F4] hover:bg-[#E5E5E5] px-2.5 py-1.5 rounded transition border border-[#DDDDDD]">HR 대시보드 ↗</a>
+            </li>
+            <li class="flex items-center gap-2 flex-wrap">
+              <span class="evidence-badge bg-[#E5E5E5] text-[#111] px-2 py-0.5 rounded text-xs font-bold h-fit shrink-0">위험</span>
+              <span>계획대로 진행 시 외주 의존도 상승</span>
+              <a href="#" class="evidence-link ml-auto flex items-center gap-1 text-xs font-bold text-[#555] bg-[#F4F4F4] hover:bg-[#E5E5E5] px-2.5 py-1.5 rounded transition border border-[#DDDDDD]">ERP 원가명세 ↗</a>
+            </li>
+            <li class="flex items-center gap-2 flex-wrap">
+              <span class="bg-[#F5280B] text-white px-2 py-0.5 rounded text-xs font-bold h-fit shrink-0">대안</span>
+              <span class="evidence-highlight text-[#111] font-bold">2주 연기 시 타 PJT 종료 인력 확보</span>
+              <a href="#" class="evidence-link ml-auto flex items-center gap-1 text-xs font-bold text-[#555] bg-[#F4F4F4] hover:bg-[#E5E5E5] px-2.5 py-1.5 rounded transition border border-[#DDDDDD]">유사 사례 ↗</a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="flex flex-col pt-3">
+          <div class="flex items-center gap-3" data-figma-component="Action-Buttons">
+            <button onclick="submitApproval()" class="bg-[linear-gradient(92deg,#FB9136,#F85F21,#F5280B)] text-white px-4 py-2.5 rounded-[30px] font-bold hover:shadow-lg hover:shadow-orange-500/20 transition-all w-1/2 flex justify-center items-center gap-1 shadow-md active:scale-95">
+               권고안 결재 상신 <span class="text-[11px] font-normal opacity-80">(ERP 연동)</span>
+            </button>
+            <button onclick="editAlternative()" class="btn-secondary border border-[#DDDDDD] bg-[#F4F4F4] px-4 py-2.5 rounded-[30px] font-bold text-[#555] hover:bg-[#E5E5E5] hover:text-[#111] transition-all w-1/2 shadow-sm active:scale-95">대안 직접 수정</button>
+          </div>
+          <div class="flex justify-end mt-3 pr-1">
+             <button onclick="rollbackState()" class="btn-rollback text-[11px] text-gray-400 hover:text-[#555] flex items-center gap-1 transition font-bold" title="시뮬레이션 초기 상태로 되돌리기">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+               이전 상태로 되돌리기 (복구)
+             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Copilot Area -->
+      <div class="pt-1 border-t border-[#E6E6E6] flex flex-col card-border-b" data-figma-component="AI-Copilot-Chat">
+        <div class="flex justify-between items-end mb-2">
+           <div class="chat-title text-[#111] text-base font-bold">AI Copilot 대화창</div>
+        </div>
+
+        <!-- Chat messages area -->
+        <div id="chatMessages" class="space-y-2.5 chat-messages-scroll overflow-y-auto mb-3 scroll-smooth" data-figma-component="Chat-Messages-Area">
+          <div class="flex justify-start animate-fade-in">
+            <div class="bg-[#F5280B]/10 border border-[#F5280B]/30 text-[#555] text-sm px-4 py-3 rounded-xl rounded-tl-sm max-w-[95%] chat-ai-bubble">
+              <span class="text-[#F5280B] font-bold">AI</span> 안녕하세요. S&OP 시뮬레이션 Copilot입니다. 제약 조건이나 추가 시나리오를 자연어로 입력해 주세요.
+            </div>
+          </div>
+
+        </div>
+
+        <div id="conditionList" class="w-full flex flex-wrap items-center gap-2">
+          <div class="condition-pill flex items-center gap-1.5 px-3 py-1 rounded-full text-xs">
+            <span>프로젝트 시작: 현재 계획 유지</span>
+            <button class="condition-pill-close ml-1">&times;</button>
+          </div>
+          <div class="condition-pill flex items-center gap-1.5 px-3 py-1 rounded-full text-xs">
+            <span>내부 인력: 0%</span>
+            <button class="condition-pill-close ml-1">&times;</button>
+          </div>
+        </div>
+
+        <div class="chat-input-box relative flex flex-col bg-[#F4F4F4] border border-[#DDDDDD] rounded-2xl shadow-inner focus-within:border-[#F5280B] focus-within:shadow-[0_0_15px_rgba(245,40,11,0.1)] transition-all mt-1 p-3 pb-2 min-h-[90px] flex-shrink-0 overflow-hidden">
+          <div class="flex gap-2 w-full flex-1">
+             <span class="text-[#F5280B] text-lg mt-0.5">✨</span>
+             <textarea id="chatInput" placeholder="제약 조건이나 시나리오를 입력하세요 (예: 예산 40억 한도로 제한)" class="bg-transparent w-full outline-none text-sm text-[#555] placeholder-gray-400 resize-none h-[40px] leading-relaxed overflow-hidden" onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); addCondition(); }"></textarea>
+          </div>
+          <div class="flex justify-between items-end mt-1 pt-1">
+             <div class="flex gap-3 text-gray-400 ml-8">
+               <button class="chat-toolbar-btn hover:text-[#F5280B] transition p-2" title="파일 첨부 (RFP 등)">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+               </button>
+               <button class="chat-toolbar-btn hover:text-[#F5280B] transition p-2" title="이미지 추가">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+               </button>
+               <button class="chat-toolbar-btn hover:text-[#F5280B] transition p-2" title="데이터 연동 (DB)">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" /></svg>
+               </button>
+             </div>
+             <button onclick="addCondition()" class="bg-[#F5280B] text-white h-9 w-10 rounded-full flex items-center justify-center hover:bg-[#F85F21] transition shadow-md active:scale-90">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" /></svg>
+             </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column -->
+    <section class="lg:col-span-4 bg-white rounded-[12px] border border-[#E6E6E6] p-4 lg:p-6 flex flex-col gap-4 shadow-[0_0_20px_0_rgba(0,0,0,0.08)] order-3 lg:overflow-y-auto" data-figma-component="Right-Panel">
+      <div class="flex flex-wrap justify-between items-center border-b border-[#E6E6E6] pb-3 gap-2 right-header-border">
+        <h2 class="section-title text-base lg:text-lg font-bold text-[#111]">자원 영향도 분석 보드</h2>
+        <div class="flex gap-2">
+          <button class="report-btn border border-[#DDDDDD] hover:bg-[#F2F2F2] text-[#555] px-3 py-1.5 rounded-[20px] text-xs font-bold flex items-center gap-1.5 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+            PDF 보고서
+          </button>
+          <button class="report-btn border border-[#DDDDDD] hover:bg-[#F2F2F2] text-[#555] px-3 py-1.5 rounded-[20px] text-xs font-bold flex items-center gap-1.5 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
+            결과 공유
+          </button>
+        </div>
+      </div>
+
+      <!-- 1) Node Map: context visualization -->
+      <div class="node-map-container border border-[#E6E6E6] rounded-xl p-4 pt-8 flex flex-col bg-[#F4F4F4] relative overflow-hidden node-map-height justify-center items-center" data-figma-component="Resource-Impact-Board">
+        <div class="node-map-inner flex w-full items-center justify-between px-4 lg:px-6 relative">
+          <div class="relative flex flex-col items-center z-10">
+            <div class="h-16 w-16 rounded-full border-4 border-gray-400 flex items-center justify-center text-sm font-bold text-[#555] node-circle bg-white node-static">주문량</div>
+            <div class="absolute -bottom-6 text-xs text-[#555] whitespace-nowrap node-sublabel">계획대비 증가</div>
+          </div>
+          <div class="relative flex flex-col items-center z-10">
+            <div id="hrNodeBadge" class="absolute -top-8 text-xs text-[#dc2020] font-bold whitespace-nowrap bg-red-50 px-2 py-1 rounded border border-red-300 transition-all duration-300 shadow-sm node-badge-danger">[제약] 내부 가용 인력 부족</div>
+            <div id="hrNodeBorder" class="h-16 w-16 rounded-full border-4 border-[#dc2020] flex items-center justify-center text-sm font-bold text-[#555] node-circle bg-white transition-all duration-300">인력</div>
+          </div>
+          <div class="relative flex flex-col items-center z-10">
+            <div id="profitNodeBadge" class="absolute -top-8 text-xs text-[#dc2020] font-bold whitespace-nowrap bg-red-50 px-2 py-1 rounded border border-red-300 transition-all duration-300 shadow-sm node-badge-danger">[위험] 목표 미달</div>
+            <div id="profitNodeBorder" class="h-16 w-16 rounded-full border-4 border-[#dc2020] shadow-[0_0_20px_rgba(230,0,0,0.4)] flex items-center justify-center text-sm font-bold text-[#dc2020] node-circle bg-white animate-pulse transition-all duration-300">이익률</div>
+          </div>
+          <svg viewBox="0 0 400 100" preserveAspectRatio="none" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+            <line x1="60" y1="50" x2="200" y2="50" stroke="#9CA3AF" stroke-width="2" />
+            <line id="svgArrowLine" x1="200" y1="50" x2="335" y2="50" stroke="#dc2020" stroke-width="3" class="animate-pulse transition-all duration-300" />
+            <polygon id="svgArrowHead" points="340,50 328,42 328,58" fill="#dc2020" class="transition-all duration-300" />
+            <line id="dottedLine" x1="270" y1="50" x2="270" y2="100" stroke="#dc2020" stroke-width="2" stroke-dasharray="4" class="transition-all duration-300" />
+          </svg>
+        </div>
+        <div class="absolute left-[67.5%] transform -translate-x-1/2 bottom-[15%] z-20 w-max">
+           <div id="arrowText" class="text-[#dc2020] bg-[#dc2020]/10 border border-[#dc2020]/30 px-3 py-1.5 rounded-md text-xs font-bold shadow-md transition-all duration-300">
+             비싼 외주 투입으로 원가 상승
+           </div>
+        </div>
+      </div>
+
+      <!-- 2+3) Simulation controls + KPI Result: grouped -->
+      <div class="sim-kpi-group flex flex-col gap-3">
+        <!-- Sliders -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+             <div class="sim-compare-title text-[#111] text-base font-bold">조건부 시뮬레이션 비교</div>
+             <button class="sim-add-btn text-xs bg-[#F4F4F4] border border-[#DDDDDD] hover:border-[#F5280B] hover:text-[#F5280B] text-[#555] px-3 py-1.5 rounded-[20px] transition-colors">+ 제약 조건 추가/관리</button>
+          </div>
+          <div class="sim-panel space-y-5 bg-[#E8E8E8] p-4 rounded-xl border border-[#D9D9D9]" data-figma-component="Simulation-Comparison-Card">
+            <div>
+              <label class="sim-label text-xs text-[#555] flex justify-between mb-2"><span>프로젝트 시작 일정</span> <span class="sim-value text-[#111] font-bold" id="delayDisplay">현재 계획 유지</span></label>
+              <input type="range" id="delayWeeks" oninput="updateKPI()" class="w-full accent-[#F5280B] cursor-pointer" min="0" max="4" value="0" step="1">
+            </div>
+            <div>
+              <label class="sim-label text-xs text-[#555] flex justify-between mb-2"><span>내부 인력 투입 비중</span> <span class="sim-value text-[#111] font-bold" id="hrValDisplay">0%</span></label>
+              <input type="range" id="hrRatio" oninput="updateKPI()" class="w-full accent-[#F5280B] cursor-pointer" min="0" max="100" value="0" step="10">
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Result: conclusion — Hero card -->
+        <div id="kpiResultWrapper" class="kpi-result-wrapper">
+          <div class="kpi-result-box p-5 lg:p-6 rounded-2xl" data-figma-component="KPI-Result-Card">
+            <div class="flex justify-between items-center mb-5">
+              <h3 class="kpi-result-title text-[#111] text-sm font-bold flex items-center gap-2">
+                
+                시뮬레이션 결과 예측
+              </h3>
+              <button onclick="saveScenario()" class="kpi-save-btn text-xs bg-[#F4F4F4] border border-[#DDDDDD] text-[#555] hover:bg-[#E8E4E0] hover:border-[#C8C3BE] px-3 py-1.5 rounded-[20px] flex items-center gap-1.5 transition font-bold shadow-sm active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                시나리오 저장
+              </button>
+            </div>
+            <div class="flex justify-between items-end">
+              <div>
+                <div class="kpi-asis-label text-xs text-gray-400 font-bold mb-2">현재 상태 (As-Is)</div>
+                <div class="text-3xl font-bold kpi-asis-value text-[#111]">11.2<span class="text-base kpi-asis-unit text-gray-400 font-normal ml-0.5">%</span></div>
+              </div>
+              <div class="kpi-arrow text-gray-300 text-3xl font-light px-3">→</div>
+              <div class="text-right">
+                <div id="kpiSimLabel" class="text-xs text-[#555] font-bold mb-2">시뮬레이션 적용 시</div>
+                <div class="flex items-baseline justify-end gap-1.5">
+                  <div id="simulatedKPI" class="text-[42px] font-black text-[#dc2020] tracking-tight leading-none">11.2</div>
+                  <div id="kpiStatus" class="text-xs font-bold text-[#dc2020]">(목표 미달/위험)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
